@@ -1,0 +1,111 @@
+name: loki
+title: Grafana Loki
+icon: loki
+type: service
+scalable: false
+
+labels:
+- loki
+- logging
+- observability
+
+options:
+- version: '3.7'
+  tag: '3.7.2'
+  default: true
+
+endpoints:
+- name: loki
+  ports:
+  - name: http
+    number: 3100
+    protocol: http
+    main: true
+    private: true
+
+volumes:
+- name: data
+  title: Loki data
+  size: 20
+  helm:
+    labels: persistence.labels
+    values:
+    - name: persistence.enabled
+      value: true
+    - name: persistence.existingClaim
+      value: '{{volumes.data.claim}}'
+    - name: persistence.size
+      value: '{{volumes.data.size}}Gi'
+
+helm:
+  name: wodby
+  source: oci://registry-1.docker.io/wodby/stateful
+  chart: oci://registry-1.docker.io/wodby/stateful
+  version: 0.2.0
+  valueMappings:
+    replicas: replicaCount
+    nameOverride: nameOverride
+    fullnameOverride: fullnameOverride
+    serviceAccountName: serviceAccount.name
+    serviceAccountCreate: serviceAccount.create
+    strategy: updateStrategy.type
+    minReady: minReadySeconds
+    shutdownGracePeriod: terminationGracePeriodSeconds
+  values:
+  - name: containerName
+    value: loki
+  - name: args
+    value:
+    - -config.file=/etc/loki/local-config.yaml
+  - name: containerPorts
+    value:
+    - name: http
+      containerPort: 3100
+      protocol: TCP
+  - name: headlessService.enabled
+    value: false
+  - name: persistence.mountPath
+    value: /tmp/loki
+  - name: podSecurityContext
+    value:
+      fsGroup: 10001
+      fsGroupChangePolicy: OnRootMismatch
+  - name: startupProbe
+    value:
+      httpGet:
+        path: /ready
+        port: http
+      failureThreshold: 30
+      periodSeconds: 5
+  - name: readinessProbe
+    value:
+      httpGet:
+        path: /ready
+        port: http
+      periodSeconds: 10
+  - name: livenessProbe
+    value:
+      httpGet:
+        path: /ready
+        port: http
+      initialDelaySeconds: 30
+      periodSeconds: 20
+
+workloads:
+- name: main
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: '{{helm.release}}'
+  kind: statefulset
+  primary: true
+  helm:
+    labels: podLabels
+    annotations: podAnnotations
+    volumes: extraVolumes
+  containers:
+  - name: loki
+    image: grafana/loki
+    helm:
+      resources: resources
+      env: envVars
+      mounts: extraVolumeMounts
