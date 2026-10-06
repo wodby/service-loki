@@ -1,5 +1,6 @@
 name: loki
 title: Grafana Loki
+guidance: GUIDANCE.md
 icon: loki
 type: service
 scalable: false
