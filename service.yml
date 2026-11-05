@@ -106,6 +106,10 @@ workloads:
   containers:
   - name: loki
     image: grafana/loki
+    resources:
+      request:
+        cpu: 10
+        memory: 48
     helm:
       resources: resources
       env: envVars
